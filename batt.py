@@ -40,7 +40,7 @@ class battery(object):
         if self.charge_full_design < 0:
           self.charge_full_design = 10000.0
         r = 1.0
-        if self.capacity == 100 and self.charge_full_design < 0:
+        if self.capacity == 100 or self.status == 'Full':
           self.voltage_min_design = self.getint('voltage_min_design',1000000.0)
           self.voltage_max_design = self.getint('voltage_max_design',1000000.0)
           if (self.voltage_min_design > 0 and
@@ -61,7 +61,9 @@ class battery(object):
         if self.charge_full < 0:
           self.estimate_charge_full()
         self.current_now = self.getint('current_now',1000.0)
-        self.charge_now = (self.capacity * self.charge_full + 50) / 100
+        self.charge_now = self.getint('charge_now',1000.0)
+        if (self.charge_now < 0):
+          self.charge_now = self.capacity * self.charge_full / 100
         if self.status == 'Charging':
           self.remaining = (self.charge_full - self.charge_now) / self.current_now
         else:
@@ -79,7 +81,7 @@ class battery(object):
     def report(self):
         print("Capacity:",self.capacity,"Remaining: %5.2f"%self.remaining,"hrs")
         print("Current:",self.current_now,self.status)
-        print("Charge full:",self.charge_full)
+        print("Charge full: %5.2f"%self.charge_full)
 
 b = battery()
 b.update()
