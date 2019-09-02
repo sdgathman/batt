@@ -36,8 +36,6 @@ class battery(object):
 
     def estimate_charge_full(self):
         if self.charge_full_design < 0:
-          self.charge_full_design = self.getint('charge_full_design',1000.0)
-        if self.charge_full_design < 0:
           self.charge_full_design = 10000.0
         r = 1.0
         if self.capacity == 100 or self.status == 'Full':
@@ -57,6 +55,8 @@ class battery(object):
         self.capacity = self.getint('capacity')
         self.status = self.get('status')
         self.voltage_now = self.getint('voltage_now',1000000.0)
+        if self.charge_full_design < 0:
+          self.charge_full_design = self.getint('charge_full_design',1000.0)
         self.charge_full = self.getint('charge_full',1000.0)
         if self.charge_full < 0:
           self.estimate_charge_full()
@@ -79,15 +79,38 @@ class battery(object):
             w.writerow(self.data())
 
     def report(self):
-        print("Capacity:",self.capacity,"Remaining: %5.2f"%self.remaining,"hrs")
-        print("Current:",self.current_now,self.status)
-        print("Charge full: %5.2f"%self.charge_full)
+        m = int(self.remaining * 60)
+        print("Capacity: %2.0f"%self.capacity,"%dh %dm"%(m//60,m%60))
+        print("Current: %3.0f"%self.current_now,self.status)
+        m = int(self.charge_full / self.charge_full_design * 100)
+        print("Charge full: %3.0f %d%%"%(self.charge_full,m))
 
-b = battery()
-b.update()
-b.report()
-while True:
-    b.log()
-    time.sleep(60)
+    def short1(self):
+        m = int(self.remaining * 60)
+        p = int(self.capacity)
+        if p == 100 or self.status == 'Full':
+          print("%d%% Full"%p)
+        else:
+          print("%d%% %dh %dm"%(p,m//60,m%60))
+    def short2(self):
+        print("%dma %3.3s"%(int(self.current_now),self.status))
+
+def main(argv):
+    from getopt import getopt
+    opts,args = getopt(argv[1:],'c12',['capacity','short'])
+    b = battery()
     b.update()
-#print(b.data(),b.remaining)
+    b.log()
+    for o,v in opts:
+      if o == '-1':
+        b.short1()
+        return 0
+      if o == '-2':
+        b.short2()
+        return 0
+    b.report()
+
+if __name__ == '__main__':
+    import sys
+    rc = main(sys.argv)
+    sys.exit(rc)
