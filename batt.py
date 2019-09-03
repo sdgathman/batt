@@ -91,11 +91,12 @@ class battery(object):
             self.voltage_max > self.voltage_min_design and
             self.voltage_max <= self.voltage_max_design):
           rd = self.voltage_max_design - self.voltage_min_design
-          rn = self.voltage_now - self.voltage_min_design
+          rn = self.voltage_max - self.voltage_min_design
           r = rn / rd
         else:
           r = 1.0
         self.charge_full = self.charge_full_design * r
+        #self.voltage()
 
     # update current data
     def update(self):
