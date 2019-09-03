@@ -4,7 +4,11 @@ import time
 import csv
 import os.path
 
+
 class battery(object):
+    SYSDIR = '/sys/class/power_supply/'
+    CONFDIR = os.path.expanduser('~/.config/battery/')
+
     def __init__(self):
         self.capacity = -1
         self.current_now = -1
@@ -13,40 +17,84 @@ class battery(object):
         self.voltage_now = -1
         self.status = None
         self.charge_full = -1
-        self.charge_full_design = -1
         self.charge_now = -1
         self.remaining = 0.0
         self.now = 0.0
-        self.batdir = '/sys/class/power_supply/axp20x-battery/'
+        self.name = 'axp20x-battery'
+        self.batdir = os.path.join(self.SYSDIR,self.name)
         if not os.path.isdir(self.batdir):
-          self.batdir = '/sys/class/power_supply/BAT0/'
+          self.name = 'BAT0'
+          self.batdir = os.path.join(self.SYSDIR,self.name)
+        self.props = self.getProps()
+        self.voltage_max = self.getPropint('voltage_max',1000000.0)
+        self.charge_full_design = self.getPropint('charge_full_design')
+
+    def getProp(self,item):
+        return self.props.get(item)
+
+    def getPropint(self,item,scale=1,default=-1):
+        try:
+            v = self.getProp(item)
+            return int(v) / scale
+        except:
+            return default
+
+    def getProps(self):
+        conf = os.path.join(self.CONFDIR,self.name)
+        d = {}
+        try:
+            with open(conf) as fp:
+                for ln in fp:
+                    ln = ln.strip()
+                    if ln.startswith('#'): continue
+                    k,v = ln.split('=',2)
+                    d[k.strip()] = v.strip()
+        except: pass
+        return d
+
+    def saveProps(self):
+        self.props['voltage_max'] = self.voltage_max
+        self.props['charge_full_design'] = self.charge_full_design
+        conf = os.path.join(self.CONFDIR,self.name)
+        try:
+            with open(conf,'w') as fp:
+                for k,v in self.props.items():
+                    fp.writeln(k+'='+v)
+        except: pass
 
     def get(self,item):
         try:
-            with open(self.batdir+item) as fp:
+            with open(os.path.join(self.batdir,item)) as fp:
                 return fp.read().strip()
         except:
             return None
 
-    def getint(self,item,scale=1):
+    def getint(self,item,scale=1,default=-1):
         try:
             return int(self.get(item)) / scale
         except:
-            return -1
+            return default
 
     def estimate_charge_full(self):
         if self.charge_full_design < 0:
           self.charge_full_design = 10000.0
-        r = 1.0
+        self.voltage_min_design = self.getint('voltage_min_design',1000000.0)
+        self.voltage_max_design = self.getint('voltage_max_design',1000000.0)
         if self.capacity == 100 or self.status == 'Full':
-          self.voltage_min_design = self.getint('voltage_min_design',1000000.0)
-          self.voltage_max_design = self.getint('voltage_max_design',1000000.0)
           if (self.voltage_min_design > 0 and
               self.voltage_now > self.voltage_min_design and
               self.voltage_now <= self.voltage_max_design):
-            rd = self.voltage_max_design - self.voltage_min_design
-            rn = self.voltage_now - self.voltage_min_design
-            r = rn / rd
+            if self.voltage_max != self.voltage_now:
+              self.voltage_max = self.voltage_now
+              self.saveProps()
+        if (self.voltage_min_design > 0 and
+            self.voltage_max > self.voltage_min_design and
+            self.voltage_max <= self.voltage_max_design):
+          rd = self.voltage_max_design - self.voltage_min_design
+          rn = self.voltage_now - self.voltage_min_design
+          r = rn / rd
+        else:
+          r = 1.0
         self.charge_full = self.charge_full_design * r
 
     # update current data
@@ -84,6 +132,11 @@ class battery(object):
         print("Current: %3.0f"%self.current_now,self.status)
         m = int(self.charge_full / self.charge_full_design * 100)
         print("Charge full: %3.0f %d%%"%(self.charge_full,m))
+
+    def voltage(self):
+        print("voltage_min_design",self.voltage_min_design)
+        print("voltage_max",self.voltage_max)
+        print("voltage_max_design",self.voltage_max_design)
 
     def short1(self):
         m = int(self.remaining * 60)
