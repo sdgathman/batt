@@ -78,7 +78,6 @@ class battery(object):
     def estimate_charge_full(self):
         if self.charge_full_design < 0:
           self.charge_full_design = 10000.0
-        self.voltage_min_design = self.getint('voltage_min_design',1000000.0)
         self.voltage_max_design = self.getint('voltage_max_design',1000000.0)
         if self.capacity == 100 or self.status == 'Full':
           if (self.voltage_min_design > 0 and
@@ -103,6 +102,7 @@ class battery(object):
         self.now = time.time()
         self.capacity = self.getint('capacity')
         self.status = self.get('status')
+        self.voltage_min_design = self.getint('voltage_min_design',1000000.0)
         self.voltage_now = self.getint('voltage_now',1000000.0)
         if self.charge_full_design < 0:
           self.charge_full_design = self.getint('charge_full_design',1000.0)
@@ -116,7 +116,9 @@ class battery(object):
         if self.status == 'Charging':
           self.remaining = (self.charge_full - self.charge_now) / self.current_now
         else:
-          self.remaining = self.charge_now / self.current_now
+          fcur = self.current_now * self.voltage_now / self.voltage_min_design
+          avgcur = (fcur + self.current_now) / 2
+          self.remaining = self.charge_now / avgcur
 
     def data(self):
         return self.capacity,self.status,self.current_now,self.voltage_now,self.now
@@ -129,10 +131,12 @@ class battery(object):
 
     def report(self):
         m = int(self.remaining * 60)
-        print("Capacity: %2.0f"%self.capacity,"%dh %dm"%(m//60,m%60))
-        print("Current: %3.0f"%self.current_now,self.status)
+        print("Capacity: %2.0f%%"%self.capacity,"%dh %dm"%(m//60,m%60))
+        print("Current: %3.0fmA"%self.current_now,self.status)
         m = int(self.charge_full / self.charge_full_design * 100)
-        print("Charge full: %3.0f %d%%"%(self.charge_full,m))
+        print("Charge full: %3.0fmAhr %d%%"%(self.charge_full,m))
+        p = self.voltage_now * self.current_now
+        print("Voltage: %4.1fV"%self.voltage_now,"%4.1fW"%(p/1000))
 
     def voltage(self):
         print("voltage_min_design",self.voltage_min_design)
