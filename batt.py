@@ -43,7 +43,9 @@ class battery(object):
         v = self.voltage_max_design
         if self.energy_full_design > 0 and self.charge_full_design < 0:
           self.charge_full_design = self.energy_full_design * 1000 / v 
-        if self.energy_full_design < 0 and self.charge_full_design > 0:
+        if self.charge_full_design < 0:
+          self.charge_full_design = 10000.0
+        if self.energy_full_design < 0:
           self.energy_full_design = self.charge_full_design * v / 1000
         self.saveProps()
 
@@ -105,8 +107,6 @@ class battery(object):
         elif self.voltage_now > self.voltage_max:
           self.voltage_max = self.voltage_now
           self.saveProps()
-        if self.charge_full_design < 0:
-          self.charge_full_design = 10000.0
         if self.energy_full > 0:
           self.charge_full = self.energy_full * 1000 / self.voltage_max
         elif (self.voltage_min_design > 0 and
