@@ -29,7 +29,7 @@ class battery(object):
         self.props = self.getProps()
         self.voltage_max = self.getint('voltage_max',1000000.0)
         if self.voltage_max < 0:
-          self.voltage_max = self.getPropint('voltage_max',1000000.0)
+          self.voltage_max = self.getPropint('voltage_max')
         if self.voltage_max < 0:
           self.voltage_max = self.getint('voltage_now',1000000.0)
         self.voltage_min_design = self.getint('voltage_min_design',1000000.0)
@@ -55,7 +55,7 @@ class battery(object):
     def getPropint(self,item,scale=1,default=-1):
         try:
             v = self.getProp(item)
-            return int(v) / scale
+            return float(v) / scale
         except:
             return default
 
@@ -73,8 +73,14 @@ class battery(object):
         return d
 
     def saveProps(self):
-        self.props['voltage_max'] = self.voltage_max
-        self.props['charge_full_design'] = self.charge_full_design
+        changed = False
+        if self.getPropint('voltage_max') < self.voltage_max:
+          self.props['voltage_max'] = self.voltage_max
+          changed = True
+        if self.getPropint('charge_full_design') < self.charge_full_design:
+          self.props['charge_full_design'] = self.charge_full_design
+          changed = True
+        if not changed: return
         conf = os.path.join(self.CONFDIR,self.name)
         try:
             with open(conf,'w') as fp:
