@@ -8,6 +8,7 @@ import os.path
 class battery(object):
     SYSDIR = '/sys/class/power_supply/'
     CONFDIR = os.path.expanduser('~/.config/battery/')
+    LOGFILE = os.path.expanduser('~/.batt')
 
     def __init__(self):
         self.capacity = -1
@@ -125,7 +126,7 @@ class battery(object):
 
     # write log record from current data
     def log(self):
-        with open('/home/stuart/.batt','a',newline='') as fp:
+        with open(self.LOGFILE,'a',newline='') as fp:
             w = csv.writer(fp)
             w.writerow(self.data())
 
