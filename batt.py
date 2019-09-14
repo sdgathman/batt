@@ -4,7 +4,6 @@ import time
 import csv
 import os.path
 
-
 class battery(object):
     SYSDIR = '/sys/class/power_supply/'
     CONFDIR = os.path.expanduser('~/.config/battery/')
@@ -13,22 +12,40 @@ class battery(object):
     def __init__(self):
         self.capacity = -1
         self.current_now = -1
-        self.voltage_min_design = -1
-        self.voltage_max_design = -1
         self.voltage_now = -1
+        self.power_now = -1
         self.status = None
+        self.energy_full = -1
         self.charge_full = -1
+        self.energy_now = -1
         self.charge_now = -1
         self.remaining = 0.0
         self.now = 0.0
-        self.name = 'axp20x-battery'
+        self.name = 'BAT0'
         self.batdir = os.path.join(self.SYSDIR,self.name)
         if not os.path.isdir(self.batdir):
-          self.name = 'BAT0'
+          self.name = 'axp20x-battery'
           self.batdir = os.path.join(self.SYSDIR,self.name)
         self.props = self.getProps()
-        self.voltage_max = self.getPropint('voltage_max',1000000.0)
-        self.charge_full_design = self.getPropint('charge_full_design')
+        self.voltage_max = self.getint('voltage_max',1000000.0)
+        if self.voltage_max < 0:
+          self.voltage_max = self.getPropint('voltage_max',1000000.0)
+        if self.voltage_max < 0:
+          self.voltage_max = self.getint('voltage_now',1000000.0)
+        self.voltage_min_design = self.getint('voltage_min_design',1000000.0)
+        self.voltage_max_design = self.getint('voltage_max_design',1000000.0)
+        if self.voltage_max_design < 0:
+          self.voltage_max_design = self.voltage_max
+        self.charge_full_design = self.getint('charge_full_design',1000.0)
+        if self.charge_full_design < 0:
+          self.charge_full_design = self.getPropint('charge_full_design')
+        self.energy_full_design = self.getint('energy_full_design',1000000.0)
+        v = self.voltage_max_design
+        if self.energy_full_design > 0 and self.charge_full_design < 0:
+          self.charge_full_design = self.energy_full_design * 1000 / v 
+        if self.energy_full_design < 0 and self.charge_full_design > 0:
+          self.energy_full_design = self.charge_full_design * v / 1000
+        self.saveProps()
 
     def getProp(self,item):
         return self.props.get(item)
@@ -60,8 +77,9 @@ class battery(object):
         try:
             with open(conf,'w') as fp:
                 for k,v in self.props.items():
-                    fp.writeln(k+'='+v)
-        except: pass
+                    fp.write(k+'='+str(v)+'\n')
+        except Exception as x:
+            print(conf,x)
 
     def get(self,item):
         try:
@@ -77,9 +95,6 @@ class battery(object):
             return default
 
     def estimate_charge_full(self):
-        if self.charge_full_design < 0:
-          self.charge_full_design = 10000.0
-        self.voltage_max_design = self.getint('voltage_max_design',1000000.0)
         if self.capacity == 100 or self.status == 'Full':
           if (self.voltage_min_design > 0 and
               self.voltage_now > self.voltage_min_design and
@@ -87,15 +102,21 @@ class battery(object):
             if self.voltage_max != self.voltage_now:
               self.voltage_max = self.voltage_now
               self.saveProps()
-        if (self.voltage_min_design > 0 and
+        elif self.voltage_now > self.voltage_max:
+          self.voltage_max = self.voltage_now
+          self.saveProps()
+        if self.charge_full_design < 0:
+          self.charge_full_design = 10000.0
+        if self.energy_full > 0:
+          self.charge_full = self.energy_full * 1000 / self.voltage_max
+        elif (self.voltage_min_design > 0 and
             self.voltage_max > self.voltage_min_design and
             self.voltage_max <= self.voltage_max_design):
           rd = self.voltage_max_design - self.voltage_min_design
           rn = self.voltage_max - self.voltage_min_design
-          r = rn / rd
+          self.charge_full = self.charge_full_design * rn / rd
         else:
-          r = 1.0
-        self.charge_full = self.charge_full_design * r
+          self.charge_full = self.charge_full_design
         #self.voltage()
 
     # update current data
@@ -103,14 +124,19 @@ class battery(object):
         self.now = time.time()
         self.capacity = self.getint('capacity')
         self.status = self.get('status')
-        self.voltage_min_design = self.getint('voltage_min_design',1000000.0)
         self.voltage_now = self.getint('voltage_now',1000000.0)
         if self.charge_full_design < 0:
           self.charge_full_design = self.getint('charge_full_design',1000.0)
         self.charge_full = self.getint('charge_full',1000.0)
+        self.energy_full = self.getint('energy_full',1000000.0)
         if self.charge_full < 0:
           self.estimate_charge_full()
+        if self.energy_full < 0:
+          self.energy_full = self.charge_full * self.voltage_max / 1000
         self.current_now = self.getint('current_now',1000.0)
+        self.power_now = self.getint('power_now',1000.0)
+        if self.current_now < 0 and self.power_now > 0:
+          self.current_now = self.power_now / self.voltage_now
         self.charge_now = self.getint('charge_now',1000.0)
         if (self.charge_now < 0):
           self.charge_now = self.capacity * self.charge_full / 100
@@ -138,6 +164,8 @@ class battery(object):
         print("Charge full: %3.0fmAhr %d%%"%(self.charge_full,m))
         p = self.voltage_now * self.current_now
         print("Voltage: %4.1fV"%self.voltage_now,"%4.1fW"%(p/1000))
+        print("Energy full: %4.1fWhr"%self.energy_full)
+        print("Energy full design: %4.1fWhr"%self.energy_full_design)
 
     def voltage(self):
         print("voltage_min_design",self.voltage_min_design)
