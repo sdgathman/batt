@@ -20,6 +20,7 @@ class battery(object):
         self.energy_now = -1
         self.charge_now = -1
         self.remaining = 0.0
+        self.measured = set()
         self.now = 0.0
         self.name = 'BAT0'
         self.batdir = os.path.join(self.SYSDIR,self.name)
@@ -92,6 +93,7 @@ class battery(object):
     def get(self,item):
         try:
             with open(os.path.join(self.batdir,item)) as fp:
+                self.measured.add(item)
                 return fp.read().strip()
         except:
             return None
@@ -162,21 +164,37 @@ class battery(object):
             w = csv.writer(fp)
             w.writerow(self.data())
 
-    def report(self):
+    def iscalculated(self,item):
+        if item in self.measured:
+          return ' '
+        return '*'
+
+    def report(self,verbose=False):
+        if verbose:
+          self.voltage()
         m = int(self.remaining * 60)
         print("Capacity: %2.0f%%"%self.capacity,"%dh %dm"%(m//60,m%60))
-        print("Current: %3.0fmA"%self.current_now,self.status)
+        c = self.iscalculated('current_now')
+        print("Current: %3.0fmA%c"%(self.current_now,c),self.status)
         m = int(self.charge_full / self.charge_full_design * 100)
-        print("Charge full: %3.0fmAhr %d%%"%(self.charge_full,m))
+        c = self.iscalculated('charge_full')
+        cd = self.iscalculated('charge_full_design')
+        print("Charge full: %3.0fmAhr%c %d%%%c"%(self.charge_full,c,m,cd))
         p = self.voltage_now * self.current_now
-        print("Voltage: %4.1fV"%self.voltage_now,"%4.1fW"%(p/1000))
-        print("Energy full: %4.1fWhr"%self.energy_full)
-        print("Energy full design: %4.1fWhr"%self.energy_full_design)
+        c = self.iscalculated('voltage_now')
+        print("Voltage: %4.1fV%c"%(self.voltage_now,c),"%4.1fW"%(p/1000))
+        c = self.iscalculated('energy_full')
+        print("Energy full: %4.1fWhr%c"%(self.energy_full,c))
+        c = self.iscalculated('energy_full_design')
+        print("Energy full design: %4.1fWhr%c"%(self.energy_full_design,c))
 
     def voltage(self):
-        print("voltage_min_design",self.voltage_min_design)
-        print("voltage_max",self.voltage_max)
-        print("voltage_max_design",self.voltage_max_design)
+        c = self.iscalculated('voltage_min_design')
+        print("Voltage min design: %4.1fV%c"%(self.voltage_min_design,c))
+        c = self.iscalculated('voltage_max')
+        print("Voltage max: %4.1f%c"%(self.voltage_max,c))
+        c = self.iscalculated('voltage_max_design')
+        print("Voltage max design: %4.1fV%c"%(self.voltage_max_design,c))
 
     def short1(self):
         m = int(self.remaining * 60)
@@ -190,18 +208,21 @@ class battery(object):
 
 def main(argv):
     from getopt import getopt
-    opts,args = getopt(argv[1:],'c12',['capacity','short'])
+    opts,args = getopt(argv[1:],'c1v2',['capacity','short','verbose'])
     b = battery()
     b.update()
     b.log()
+    verbose = False
     for o,v in opts:
-      if o == '-1':
+      if o in ('-1','--short'):
         b.short1()
         return 0
       if o == '-2':
         b.short2()
         return 0
-    b.report()
+      if o in ('-v','--verbose'):
+        verbose = True
+    b.report(verbose)
 
 if __name__ == '__main__':
     import sys
