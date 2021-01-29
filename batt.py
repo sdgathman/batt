@@ -153,7 +153,10 @@ class battery(object):
         else:
           fcur = self.current_now * self.voltage_now / self.voltage_min_design
           avgcur = (fcur + self.current_now) / 2
-          self.remaining = self.charge_now / avgcur
+          if avgcur:
+            self.remaining = self.charge_now / avgcur
+          else:
+            self.remaining = 0.0
 
     def data(self):
         return self.capacity,self.status,self.current_now,self.voltage_now,self.now
